@@ -1,65 +1,161 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState } from "react";
+import { useProjects, useProjectMeta } from "@/hooks/useProjects";
+import { SearchBar } from "@/components/ui/SearchBar";
+import { FilterPanel } from "@/components/project/FilterPanel";
+import { ProjectGrid } from "@/components/project/ProjectGrid";
+import { SortBar } from "@/components/project/SortBar";
+
+export default function HomePage() {
+  const meta = useProjectMeta();
+  const [view, setView] = useState<"grid" | "list">("grid");
+
+  const {
+    projects,
+    total,
+    totalPages,
+    loading,
+    error,
+    filters,
+    updateFilters,
+    resetFilters,
+    toggleLanguage,
+    toggleFramework,
+    toggleTag,
+    activeFilterCount,
+  } = useProjects();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+      {/* Hero header */}
+      <div className="mb-8 lg:mb-10">
+        <h1 className="section-heading mb-2">
+          Project Showcase
+        </h1>
+        <p className="text-zinc-500 dark:text-zinc-400 max-w-xl">
+          Browse {meta?.total ? meta.total.toLocaleString() : "200+"} projects across{" "}
+          {meta?.languages?.length || "many"} languages and{" "}
+          {meta?.frameworks?.length || "dozens of"} frameworks.
+        </p>
+
+        {/* Search */}
+        <div className="mt-4 max-w-xl">
+          <SearchBar
+            value={filters.query || ""}
+            onChange={(q) => updateFilters({ query: q })}
+          />
+        </div>
+      </div>
+
+      <div className="flex gap-6 lg:gap-8">
+        {/* Sidebar filters */}
+        <FilterPanel
+          meta={meta}
+          filters={filters}
+          onToggleLanguage={toggleLanguage}
+          onToggleFramework={toggleFramework}
+          onToggleTag={toggleTag}
+          onUpdateFilter={updateFilters}
+          onReset={resetFilters}
+          activeCount={activeFilterCount}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+
+        {/* Main content */}
+        <div className="flex-1 min-w-0 flex flex-col gap-4">
+          {/* Mobile filter panel sits above sort bar */}
+          <div className="lg:hidden">
+            <FilterPanel
+              meta={meta}
+              filters={filters}
+              onToggleLanguage={toggleLanguage}
+              onToggleFramework={toggleFramework}
+              onToggleTag={toggleTag}
+              onUpdateFilter={updateFilters}
+              onReset={resetFilters}
+              activeCount={activeFilterCount}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
+
+          {/* Sort + view toggle */}
+          <SortBar
+            total={total}
+            loading={loading}
+            filters={filters}
+            onUpdateFilter={updateFilters}
+            view={view}
+            onViewChange={setView}
+          />
+
+          {/* Active filter chips */}
+          {activeFilterCount > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {(filters.languages || []).map((l) => (
+                <FilterChip
+                  key={`lang-${l}`}
+                  label={l}
+                  onRemove={() => toggleLanguage(l)}
+                />
+              ))}
+              {(filters.frameworks || []).map((f) => (
+                <FilterChip
+                  key={`fw-${f}`}
+                  label={f}
+                  onRemove={() => toggleFramework(f)}
+                />
+              ))}
+              {(filters.tags || []).map((t) => (
+                <FilterChip
+                  key={`tag-${t}`}
+                  label={`#${t}`}
+                  onRemove={() => toggleTag(t)}
+                />
+              ))}
+              {filters.status && (
+                <FilterChip
+                  label={filters.status}
+                  onRemove={() => updateFilters({ status: "" })}
+                />
+              )}
+              {filters.featured && (
+                <FilterChip
+                  label="Featured"
+                  onRemove={() => updateFilters({ featured: undefined })}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Project grid */}
+          <ProjectGrid
+            projects={projects}
+            loading={loading}
+            error={error}
+            total={total}
+            page={filters.page || 1}
+            totalPages={totalPages}
+            onPageChange={(p) => updateFilters({ page: p })}
+          />
         </div>
-      </main>
+      </div>
     </div>
+  );
+}
+
+function FilterChip({
+  label,
+  onRemove,
+}: {
+  label: string;
+  onRemove: () => void;
+}) {
+  return (
+    <button
+      onClick={onRemove}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800 rounded-full text-xs font-medium hover:bg-brand-100 dark:hover:bg-brand-900 transition-colors"
+    >
+      {label}
+      <span aria-hidden className="text-brand-400">×</span>
+    </button>
   );
 }
