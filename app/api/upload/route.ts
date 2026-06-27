@@ -1,9 +1,13 @@
+// app/api/upload/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { uploadImage, uploadThumbnail } from "@/lib/cloudinary";
+import { isAdminRequest } from "@/lib/requireAdmin";
 
+// Middleware already blocks this route for unauthenticated requests
+// (see middleware.ts matcher: "/api/upload/:path*"). isAdminRequest here
+// is defense-in-depth in case middleware config ever drifts.
 export async function POST(req: NextRequest) {
-  const adminSecret = req.headers.get("x-admin-secret");
-  if (adminSecret !== process.env.ADMIN_SECRET) {
+  if (!(await isAdminRequest(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -36,6 +40,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export const config = {
-  api: { bodyParser: false },
-};
+// Note: no `config`/`bodyParser` export needed here — that was a Pages Router
+// convention. App Router route handlers parse multipart form data natively
+// via req.formData(), so there's nothing to opt out of.

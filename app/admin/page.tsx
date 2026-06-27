@@ -8,54 +8,82 @@ import toast from "react-hot-toast";
 import { cn, slugify, getTechColor } from "@/lib/utils";
 import Image from "next/image";
 
-const ADMIN_SECRET =
-  typeof window !== "undefined"
-    ? localStorage.getItem("admin_secret") || ""
-    : "";
+// ─── Session check ───────────────────────────────────────────────────────────
+// Auth now lives in an HTTP-only cookie set by POST /api/admin/login.
+// We can't read that cookie from JS (by design), so we ask the server
+// "am I authed?" via a lightweight check, and otherwise just attempt
+// the action and handle a 401 if the session expired mid-visit.
+function useAdminSession() {
+  const [authed, setAuthed] = useState<boolean | null>(null); // null = checking
 
-function useAdminSecret() {
-  const [secret, setSecret] = useState("");
-  const [authed, setAuthed] = useState(false);
-
-  useEffect(() => {
-    const stored = localStorage.getItem("admin_secret") || "";
-    setSecret(stored);
-    if (stored) setAuthed(true);
-  }, []);
-
-  const login = (s: string) => {
-    localStorage.setItem("admin_secret", s);
-    setSecret(s);
-    setAuthed(true);
+  const checkSession = async () => {
+    try {
+      // Any cheap protected GET would work; we piggyback on a no-op
+      // HEAD-style check by hitting login route's sibling check endpoint.
+      const res = await fetch("/api/admin/session");
+      setAuthed(res.ok);
+    } catch {
+      setAuthed(false);
+    }
   };
 
-  const logout = () => {
-    localStorage.removeItem("admin_secret");
-    setSecret("");
+  useEffect(() => {
+    checkSession();
+  }, []);
+
+  const login = async (password: string): Promise<boolean> => {
+    const res = await fetch("/api/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    if (res.ok) {
+      setAuthed(true);
+      return true;
+    }
+    return false;
+  };
+
+  const logout = async () => {
+    await fetch("/api/admin/logout", { method: "POST" });
     setAuthed(false);
   };
 
-  return { secret, authed, login, logout };
+  return { authed, login, logout };
 }
 
 // ─── Admin Login ─────────────────────────────────────────────────────────────
-function AdminLogin({ onLogin }: { onLogin: (s: string) => void }) {
+function AdminLogin({ onLogin }: { onLogin: (s: string) => Promise<boolean> }) {
   const [value, setValue] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async () => {
+    if (!value) return;
+    setSubmitting(true);
+    setError("");
+    const ok = await onLogin(value);
+    if (!ok) setError("Incorrect password");
+    setSubmitting(false);
+  };
+
   return (
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="card p-8 w-full max-w-sm flex flex-col gap-4">
-        <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Admin Login</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">Enter your admin secret to continue.</p>
+        <h1 className="text-xl font-bold text-[var(--text-primary)]">Admin Login</h1>
+        <p className="text-sm text-[var(--text-muted)]">Enter your admin secret to continue.</p>
         <input
           type="password"
           className="input"
           placeholder="Admin secret"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && onLogin(value)}
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+          autoFocus
         />
-        <button className="btn-primary" onClick={() => onLogin(value)}>
-          Continue
+        {error && <p className="text-sm text-red-500">{error}</p>}
+        <button className="btn-primary" onClick={submit} disabled={submitting}>
+          {submitting ? "Checking…" : "Continue"}
         </button>
       </div>
     </div>
@@ -84,12 +112,12 @@ function ProjectForm({
   initial,
   onSave,
   onCancel,
-  secret,
+  onAuthExpired,
 }: {
   initial?: Partial<ProjectDraft> & { _id?: string };
   onSave: (p: Project) => void;
   onCancel: () => void;
-  secret: string;
+  onAuthExpired: () => void;
 }) {
   const [form, setForm] = useState<ProjectDraft>({ ...EMPTY_PROJECT, ...initial });
   const [saving, setSaving] = useState(false);
@@ -125,6 +153,7 @@ function ProjectForm({
   const removeTag = (t: string) =>
     set("tags", form.tags.filter((x) => x !== t));
 
+  // Cookies are sent automatically by the browser — no x-admin-secret header needed.
   const handleUpload = async (files: FileList | null, type: "image" | "thumbnail") => {
     if (!files?.length) return;
     setUploading(true);
@@ -134,9 +163,12 @@ function ProjectForm({
       fd.append("type", type);
       const res = await fetch("/api/upload", {
         method: "POST",
-        headers: { "x-admin-secret": secret },
         body: fd,
       });
+      if (res.status === 401) {
+        onAuthExpired();
+        return;
+      }
       const { uploads } = await res.json();
       if (type === "thumbnail") {
         set("thumbnailUrl", uploads[0].url);
@@ -167,12 +199,13 @@ function ProjectForm({
       const method = isEdit ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-secret": secret,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
+      if (res.status === 401) {
+        onAuthExpired();
+        return;
+      }
       if (!res.ok) throw new Error(await res.text());
       const saved: Project = await res.json();
       toast.success(isEdit ? "Project updated!" : "Project created!");
@@ -188,7 +221,7 @@ function ProjectForm({
     <div className="flex flex-col gap-5 max-h-[80vh] overflow-y-auto pr-1">
       {/* Title */}
       <div>
-        <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1 block">
+        <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1 block">
           Title *
         </label>
         <input
@@ -201,7 +234,7 @@ function ProjectForm({
 
       {/* Description */}
       <div>
-        <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1 block">
+        <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1 block">
           Short Description * (max 300 chars)
         </label>
         <textarea
@@ -212,14 +245,14 @@ function ProjectForm({
           onChange={(e) => set("description", e.target.value)}
           placeholder="A brief description shown on cards"
         />
-        <p className="text-xs text-zinc-400 mt-0.5 text-right">
+        <p className="text-xs text-[var(--text-muted)] mt-0.5 text-right">
           {form.description.length}/300
         </p>
       </div>
 
       {/* Long description */}
       <div>
-        <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1 block">
+        <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1 block">
           Full Description (optional)
         </label>
         <textarea
@@ -233,12 +266,12 @@ function ProjectForm({
 
       {/* Thumbnail upload */}
       <div>
-        <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1 block">
+        <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1 block">
           Thumbnail
         </label>
         <div className="flex items-center gap-3">
           {form.thumbnailUrl && (
-            <div className="relative w-24 h-16 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
+            <div className="relative w-24 h-16 rounded-lg overflow-hidden border border-[var(--border)]">
               <Image src={form.thumbnailUrl} alt="Thumbnail" fill className="object-cover" />
             </div>
           )}
@@ -261,7 +294,7 @@ function ProjectForm({
           {form.thumbnailUrl && (
             <button
               onClick={() => set("thumbnailUrl", "")}
-              className="text-zinc-400 hover:text-red-500 transition-colors"
+              className="text-[var(--text-muted)] hover:text-red-500 transition-colors"
             >
               <X size={14} />
             </button>
@@ -271,14 +304,14 @@ function ProjectForm({
 
       {/* Screenshot images */}
       <div>
-        <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1 block">
+        <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1 block">
           Screenshots
         </label>
         <div className="flex flex-wrap gap-2 mb-2">
           {form.imageUrls.map((url, i) => (
             <div
               key={i}
-              className="relative w-24 h-16 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700 group"
+              className="relative w-24 h-16 rounded-lg overflow-hidden border border-[var(--border)] group"
             >
               <Image src={url} alt={`Screenshot ${i + 1}`} fill className="object-cover" />
               <button
@@ -314,7 +347,7 @@ function ProjectForm({
 
       {/* Tech stack */}
       <div>
-        <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1 block">
+        <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1 block">
           Tech Stack
         </label>
         <div className="flex gap-2 mb-2">
@@ -343,12 +376,9 @@ function ProjectForm({
         </div>
         <div className="flex flex-wrap gap-1.5">
           {form.stack.map((t, i) => (
-            <span
-              key={i}
-              className="badge badge-other gap-1.5"
-            >
+            <span key={i} className="badge badge-other gap-1.5">
               {t.name}
-              <span className="text-xs text-zinc-400 capitalize">({t.category})</span>
+              <span className="text-xs text-[var(--text-muted)] capitalize">({t.category})</span>
               <button onClick={() => removeTech(i)} className="hover:text-red-500 transition-colors">
                 <X size={10} />
               </button>
@@ -359,7 +389,7 @@ function ProjectForm({
 
       {/* Tags */}
       <div>
-        <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1 block">
+        <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1 block">
           Tags
         </label>
         <div className="flex gap-2 mb-2">
@@ -389,7 +419,7 @@ function ProjectForm({
       {/* URLs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1 block">
+          <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1 block">
             Live URL
           </label>
           <input
@@ -401,7 +431,7 @@ function ProjectForm({
           />
         </div>
         <div>
-          <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1 block">
+          <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1 block">
             Repo URL
           </label>
           <input
@@ -417,7 +447,7 @@ function ProjectForm({
       {/* Status + Featured */}
       <div className="flex items-center gap-4 flex-wrap">
         <div>
-          <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1 block">
+          <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1 block">
             Status
           </label>
           <select
@@ -435,14 +465,14 @@ function ProjectForm({
             type="checkbox"
             checked={form.featured}
             onChange={(e) => set("featured", e.target.checked)}
-            className="w-4 h-4 rounded border-zinc-300 text-brand-600 focus:ring-brand-500"
+            className="w-4 h-4 rounded border-[var(--border)] text-brand-600 focus:ring-brand-500"
           />
-          <span className="text-sm text-zinc-700 dark:text-zinc-300">Featured project</span>
+          <span className="text-sm text-[var(--text-secondary)]">Featured project</span>
         </label>
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-3 pt-2 border-t border-zinc-200 dark:border-zinc-800 sticky bottom-0 bg-white dark:bg-zinc-950 pb-2">
+      <div className="flex items-center gap-3 pt-2 border-t border-[var(--border)] sticky bottom-0 bg-[var(--bg)] pb-2">
         <button className="btn-primary flex-1" onClick={handleSave} disabled={saving}>
           {saving ? "Saving…" : initial?._id ? "Save changes" : "Create project"}
         </button>
@@ -456,7 +486,7 @@ function ProjectForm({
 
 // ─── Admin Main ───────────────────────────────────────────────────────────────
 export default function AdminPage() {
-  const { secret, authed, login, logout } = useAdminSecret();
+  const { authed, login, logout } = useAdminSession();
   const [projects, setProjects] = useState<Project[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -486,17 +516,23 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (authed) fetchProjects();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed, page, q]);
+
+  const handleAuthExpired = () => {
+    toast.error("Session expired — please log in again");
+    logout();
+  };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this project? This cannot be undone.")) return;
     setDeleting(id);
     try {
-      await fetch(`/api/projects/${id}`, {
-        method: "DELETE",
-        headers: { "x-admin-secret": secret },
-      });
+      const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+      if (res.status === 401) {
+        handleAuthExpired();
+        return;
+      }
       toast.success("Project deleted");
       fetchProjects();
     } catch {
@@ -506,6 +542,14 @@ export default function AdminPage() {
     }
   };
 
+  if (authed === null) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <p className="text-sm text-[var(--text-muted)]">Checking session…</p>
+      </div>
+    );
+  }
+
   if (!authed) return <AdminLogin onLogin={login} />;
 
   return (
@@ -514,7 +558,7 @@ export default function AdminPage() {
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="section-heading">Admin Panel</h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+          <p className="text-sm text-[var(--text-muted)] mt-0.5">
             {total.toLocaleString()} total projects
           </p>
         </div>
@@ -538,7 +582,7 @@ export default function AdminPage() {
       <div className="relative mb-4 max-w-sm">
         <Search
           size={15}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none"
         />
         <input
           className="input pl-9"
@@ -556,7 +600,7 @@ export default function AdminPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="card w-full max-w-2xl p-6 shadow-2xl animate-scale-in">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="font-bold text-lg text-zinc-900 dark:text-zinc-100">
+              <h2 className="font-bold text-lg text-[var(--text-primary)]">
                 {editProject ? "Edit Project" : "New Project"}
               </h2>
               <button
@@ -571,8 +615,8 @@ export default function AdminPage() {
             </div>
             <ProjectForm
               initial={editProject || undefined}
-              secret={secret}
-              onSave={(saved) => {
+              onAuthExpired={handleAuthExpired}
+              onSave={() => {
                 setShowForm(false);
                 setEditProject(null);
                 fetchProjects();
@@ -590,22 +634,22 @@ export default function AdminPage() {
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
-              <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+            <tr className="border-b border-[var(--border)] bg-[var(--bg-subtle)]">
+              <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
                 Project
               </th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden md:table-cell">
+              <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider hidden md:table-cell">
                 Stack
               </th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hidden lg:table-cell">
+              <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider hidden lg:table-cell">
                 Status
               </th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+              <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          <tbody className="divide-y divide-[var(--border-muted)]">
             {loading
               ? Array.from({ length: 8 }).map((_, i) => (
                   <tr key={i}>
@@ -625,21 +669,18 @@ export default function AdminPage() {
               : projects.map((p) => (
                   <tr
                     key={p._id}
-                    className="hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors"
+                    className="hover:bg-[var(--bg-subtle)] transition-colors"
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {p.featured && (
-                          <Star
-                            size={12}
-                            className="text-brand-500 fill-brand-500 flex-shrink-0"
-                          />
+                          <Star size={12} className="text-brand-500 fill-brand-500 flex-shrink-0" />
                         )}
                         <div>
-                          <p className="font-medium text-zinc-900 dark:text-zinc-100 line-clamp-1">
+                          <p className="font-medium text-[var(--text-primary)] line-clamp-1">
                             {p.title}
                           </p>
-                          <p className="text-xs text-zinc-400 dark:text-zinc-500 line-clamp-1 mt-0.5">
+                          <p className="text-xs text-[var(--text-muted)] line-clamp-1 mt-0.5">
                             {p.description}
                           </p>
                         </div>
@@ -662,19 +703,20 @@ export default function AdminPage() {
                     <td className="px-4 py-3 hidden lg:table-cell">
                       <div className="flex items-center gap-2">
                         <span
-                          className={cn(
-                            "inline-block w-1.5 h-1.5 rounded-full",
-                            p.status === "completed"
-                              ? "bg-green-500"
-                              : p.status === "in-progress"
-                              ? "bg-amber-500"
-                              : "bg-zinc-400"
-                          )}
+                          className="inline-block w-1.5 h-1.5 rounded-full"
+                          style={{
+                            backgroundColor:
+                              p.status === "completed"
+                                ? "var(--green-text)"
+                                : p.status === "in-progress"
+                                ? "var(--amber-text)"
+                                : "var(--zinc-text)",
+                          }}
                         />
-                        <span className="text-zinc-500 dark:text-zinc-400 capitalize text-xs">
+                        <span className="text-[var(--text-muted)] capitalize text-xs">
                           {p.status}
                         </span>
-                        <span className="flex items-center gap-0.5 text-xs text-zinc-400 ml-2">
+                        <span className="flex items-center gap-0.5 text-xs text-[var(--text-muted)] ml-2">
                           <Eye size={10} />
                           {p.viewCount || 0}
                         </span>
@@ -709,8 +751,8 @@ export default function AdminPage() {
 
         {/* Pagination */}
         {total > 20 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-200 dark:border-zinc-800">
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border)]">
+            <p className="text-xs text-[var(--text-muted)]">
               Page {page} of {Math.ceil(total / 20)}
             </p>
             <div className="flex gap-2">

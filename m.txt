@@ -1,0 +1,8 @@
+NEXTAUTH_SECRET=your-nextauth-secret-here-change-this
+MONGO_URI=mongodb+srv://peter:peter1995@cluster0.o4tmp.mongodb.net/portfolio
+JWT_SECRET=4f8c7d2e9a1b6c5f3e8d0a7b9c2f4e6d1a8c3b7f5e9d2a6c4b8f1e3d7a9c6b5f
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=dds5z4ivd
+CLOUDINARY_API_KEY=224932581196554
+CLOUDINARY_API_SECRET=iiQ858g_mGruVwCuYGOcNEPAGG0
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+ADMIN_SECRET=something-you-chose
