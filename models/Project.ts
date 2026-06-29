@@ -1,5 +1,13 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
+export interface IDemoCredential {
+  role: string;
+  label: string;
+  username?: string;
+  password: string;
+  description?: string;
+}
+
 export interface IProject extends Document {
   title: string;
   slug: string;
@@ -22,6 +30,7 @@ export interface IProject extends Document {
   startDate?: Date;
   endDate?: Date;
   viewCount: number;
+  demoCredentials: IDemoCredential[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +44,19 @@ const TechSchema = new Schema(
       default: "other",
     },
     color: String,
+  },
+  { _id: false }
+);
+
+// Stored as plaintext intentionally — these are demo/test credentials
+// meant to be displayed to visitors, not real user account secrets.
+const DemoCredentialSchema = new Schema(
+  {
+    role: { type: String, required: true, trim: true },       // e.g. "admin", "secretary", "member"
+    label: { type: String, required: true, trim: true },      // e.g. "Admin Account"
+    username: { type: String, trim: true },                   // optional — only for username+password systems
+    password: { type: String, required: true },               // plaintext — intentional for demo display
+    description: { type: String, trim: true, maxlength: 200 }, // e.g. "Full access to dashboard"
   },
   { _id: false }
 );
@@ -62,6 +84,7 @@ const ProjectSchema = new Schema<IProject>(
     startDate: Date,
     endDate: Date,
     viewCount: { type: Number, default: 0 },
+    demoCredentials: { type: [DemoCredentialSchema], default: [] },
   },
   {
     timestamps: true,

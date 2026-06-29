@@ -15,10 +15,10 @@ interface SortBarProps {
 }
 
 const SORT_OPTIONS = [
-  { value: "newest", label: "Newest" },
-  { value: "oldest", label: "Oldest" },
+  { value: "newest",   label: "Newest" },
+  { value: "oldest",   label: "Oldest" },
   { value: "featured", label: "Featured first" },
-  { value: "title", label: "A–Z" },
+  { value: "title",    label: "A–Z" },
 ];
 
 export function SortBar({
@@ -31,12 +31,13 @@ export function SortBar({
 }: SortBarProps) {
   return (
     <div className="flex items-center justify-between gap-3 flex-wrap">
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+      {/* Count */}
+      <p className="text-sm text-[var(--text-muted)]">
         {loading ? (
           <span className="skeleton inline-block h-4 w-24 rounded" />
         ) : (
           <>
-            <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+            <span className="font-semibold text-[var(--text-primary)]">
               {total.toLocaleString()}
             </span>{" "}
             {total === 1 ? "project" : "projects"}
@@ -45,7 +46,7 @@ export function SortBar({
       </p>
 
       <div className="flex items-center gap-2">
-        {/* Sort */}
+        {/* Sort select */}
         <select
           value={filters.sort || "newest"}
           onChange={(e) =>
@@ -55,38 +56,27 @@ export function SortBar({
           aria-label="Sort projects"
         >
           {SORT_OPTIONS.map(({ value, label }) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
+            <option key={value} value={value}>{label}</option>
           ))}
         </select>
 
-        {/* View toggle */}
-        <div className="flex items-center border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden">
-          <button
-            onClick={() => onViewChange("grid")}
-            className={cn(
-              "p-2 transition-colors",
-              view === "grid"
-                ? "bg-brand-600 text-white"
-                : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            )}
-            aria-label="Grid view"
-          >
-            <LayoutGrid size={15} />
-          </button>
-          <button
-            onClick={() => onViewChange("list")}
-            className={cn(
-              "p-2 transition-colors",
-              view === "list"
-                ? "bg-brand-600 text-white"
-                : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            )}
-            aria-label="List view"
-          >
-            <List size={15} />
-          </button>
+        {/* View toggle — mirrors ThemeToggle pill style */}
+        <div className="flex items-center gap-0.5 rounded-xl border border-[var(--border)] bg-[var(--bg-muted)] p-0.5">
+          {(["grid", "list"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => onViewChange(v)}
+              aria-label={v === "grid" ? "Grid view" : "List view"}
+              className={cn(
+                "flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-150",
+                view === v
+                  ? "bg-white dark:bg-zinc-600 shadow-sm text-[var(--brand-600)] dark:text-[var(--brand-300)]"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)]"
+              )}
+            >
+              {v === "grid" ? <LayoutGrid size={14} /> : <List size={14} />}
+            </button>
+          ))}
         </div>
       </div>
     </div>

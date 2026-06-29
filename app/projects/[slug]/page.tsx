@@ -13,6 +13,9 @@ import {
   Calendar,
   Eye,
   Tag,
+  KeyRound,
+  Copy,
+  Check,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
@@ -66,6 +69,8 @@ export default async function ProjectPage({ params }: Props) {
   const tools = project.stack.filter(
     (t) => !["language", "framework", "database"].includes(t.category)
   );
+
+  const hasDemoCredentials = project.demoCredentials && project.demoCredentials.length > 0;
 
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
@@ -172,7 +177,6 @@ export default async function ProjectPage({ params }: Props) {
               {project.description}
             </p>
 
-            {/* Meta info */}
             <div className="flex flex-col gap-2 text-sm">
               <div className="flex items-center gap-2 text-[var(--text-muted)]">
                 <Eye size={14} />
@@ -196,8 +200,8 @@ export default async function ProjectPage({ params }: Props) {
                       project.status === "completed"
                         ? "var(--green-text)"
                         : project.status === "in-progress"
-                        ? "var(--amber-text)"
-                        : "var(--zinc-text)",
+                          ? "var(--amber-text)"
+                          : "var(--zinc-text)",
                   }}
                 />
                 <span className="text-[var(--text-muted)] capitalize">
@@ -206,35 +210,131 @@ export default async function ProjectPage({ params }: Props) {
               </div>
             </div>
           </div>
-
           {/* Links */}
           {(project.liveUrl || project.repoUrl) && (
-            <div className="card p-5 flex flex-col gap-2">
-              <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1">
-                Links
+            <div className="card p-4 sm:p-5 lg:p-6">
+              <h3 className="mb-4 text-[10px] sm:text-xs font-semibold uppercase tracking-[0.25em] text-[var(--text-muted)]">
+                Project Links
               </h3>
-              {project.liveUrl && (
-                <a
-                  href={project.liveUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-primary w-full justify-center"
-                >
-                  <ExternalLink size={15} />
-                  Live Demo
-                </a>
-              )}
-              {project.repoUrl && (
-                <a
-                  href={project.repoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary w-full justify-center"
-                >
-                  <Github size={15} />
-                  Source Code
-                </a>
-              )}
+
+              <div className="space-y-3">
+                {project.liveUrl && (
+                  <a
+                    href={project.liveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="
+            group flex items-center justify-between
+            rounded-xl border border-[var(--border)]
+            p-3 sm:p-4
+            transition-all duration-300
+            hover:bg-[var(--bg-subtle)]
+            hover:border-[var(--text-muted)]
+          "
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-subtle)]">
+                        <ExternalLink className="h-4 w-4 sm:h-5 sm:w-5" />
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="truncate text-sm sm:text-base font-semibold text-[var(--text-primary)]">
+                          Live Demo
+                        </p>
+
+                        <p className="truncate text-xs sm:text-sm text-[var(--text-muted)]">
+                          View the deployed application
+                        </p>
+                      </div>
+                    </div>
+
+                    <ExternalLink className="h-4 w-4 shrink-0 text-[var(--text-muted)] transition-transform group-hover:translate-x-1" />
+                  </a>
+                )}
+
+                {project.repoUrl && (
+                  <a
+                    href={project.repoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="
+            group flex items-center justify-between
+            rounded-xl border border-[var(--border)]
+            p-3 sm:p-4
+            transition-all duration-300
+            hover:bg-[var(--bg-subtle)]
+            hover:border-[var(--text-muted)]
+          "
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-subtle)]">
+                        <Github className="h-4 w-4 sm:h-5 sm:w-5" />
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="truncate text-sm sm:text-base font-semibold text-[var(--text-primary)]">
+                          Source Code
+                        </p>
+
+                        <p className="truncate text-xs sm:text-sm text-[var(--text-muted)]">
+                          Browse the GitHub repository
+                        </p>
+                      </div>
+                    </div>
+
+                    <ExternalLink className="h-4 w-4 shrink-0 text-[var(--text-muted)] transition-transform group-hover:translate-x-1" />
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+          {/* Demo Credentials */}
+          {hasDemoCredentials && (
+            <div className="card p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <KeyRound size={14} className="text-[var(--text-muted)]" />
+                <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
+                  Test Credentials
+                </h3>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                {project.demoCredentials.map((cred, i) => (
+                  <div key={i} className="flex flex-col gap-1.5">
+                    {/* Role header */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-[var(--text-primary)]">
+                        {cred.label}
+                      </span>
+                      <span className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] bg-[var(--bg-muted)] border border-[var(--border)] px-1.5 py-0.5 rounded">
+                        {cred.role}
+                      </span>
+                    </div>
+
+                    {/* Description */}
+                    {cred.description && (
+                      <p className="text-xs text-[var(--text-muted)]">{cred.description}</p>
+                    )}
+
+                    {/* Credential rows */}
+                    <div className="flex flex-col gap-1 mt-0.5">
+                      {cred.username && (
+                        <CredentialRow label="Username" value={cred.username} />
+                      )}
+                      <CredentialRow label="Password" value={cred.password} />
+                    </div>
+
+                    {/* Divider between credentials (not after last) */}
+                    {i < project.demoCredentials.length - 1 && (
+                      <div className="border-t border-[var(--border-muted)] mt-1" />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-[10px] text-[var(--text-muted)] mt-4 leading-relaxed">
+                These are test accounts provided for demo purposes only.
+              </p>
             </div>
           )}
 
@@ -266,6 +366,26 @@ export default async function ProjectPage({ params }: Props) {
   );
 }
 
+// ─── CredentialRow — client component for copy-to-clipboard ──────────────────
+// We use a thin wrapper so the page stays a Server Component overall.
+function CredentialRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2 bg-[var(--bg-subtle)] border border-[var(--border)] rounded-lg px-3 py-2">
+      <span className="text-[11px] text-[var(--text-muted)] shrink-0">{label}</span>
+      <div className="flex items-center gap-1.5 min-w-0">
+        <code className="text-xs text-[var(--text-primary)] font-mono truncate">{value}</code>
+        {/* Copy button — requires "use client" so we inline a small island */}
+        <CopyButton value={value} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Tiny client island for copy button ──────────────────────────────────────
+// Keeping this minimal so the rest of the page remains a Server Component.
+import { CopyButton } from "../../../components/ui/CopyButton";
+
+// ─── StackGroup ───────────────────────────────────────────────────────────────
 function StackGroup({
   label,
   techs,

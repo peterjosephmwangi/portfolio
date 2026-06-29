@@ -4,11 +4,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Project from "@/models/Project";
 import { slugify } from "@/lib/utils";
+import { isAdminRequest } from "@/lib/requireAdmin";
 import { z } from "zod";
 
 const PAGE_SIZE = 12;
 
-// GET /api/projects — search, filter, paginate
+// GET /api/projects — search, filter, paginate (public, no auth required)
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
@@ -99,6 +100,16 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// ─── Zod Schemas ──────────────────────────────────────────────────────────────
+
+const DemoCredentialSchema = z.object({
+  role: z.string().min(1).max(50),
+  label: z.string().min(1).max(80),
+  username: z.string().optional(),
+  password: z.string().min(1),
+  description: z.string().max(200).optional(),
+});
+
 const CreateSchema = z.object({
   title: z.string().min(1).max(120),
   description: z.string().min(1).max(300),
@@ -121,11 +132,16 @@ const CreateSchema = z.object({
   status: z.enum(["completed", "in-progress", "archived"]).default("completed"),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  // Per-project demo/test credentials — stored plaintext intentionally,
+  // these are meant to be displayed to visitors for testing purposes.
+  demoCredentials: z.array(DemoCredentialSchema).default([]),
 });
 
+// POST /api/projects — create (admin only)
+// Middleware already blocks this for unauthenticated requests; isAdminRequest
+// here is defense-in-depth in case middleware config ever drifts.
 export async function POST(req: NextRequest) {
-  const adminSecret = req.headers.get("x-admin-secret");
-  if (adminSecret !== process.env.ADMIN_SECRET) {
+  if (!(await isAdminRequest(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

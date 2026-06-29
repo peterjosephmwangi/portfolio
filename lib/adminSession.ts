@@ -1,3 +1,4 @@
+// lib/adminSession.ts
 // Edge-runtime-safe: uses Web Crypto (crypto.subtle), not Node's `crypto` module.
 // This file is imported by middleware.ts, which runs on the Edge Runtime by
 // default — Node built-ins like require("crypto") are not available there.

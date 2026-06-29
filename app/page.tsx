@@ -1,3 +1,4 @@
+// app/page.tsx 
 "use client";
 
 import { useState } from "react";
@@ -30,10 +31,8 @@ export default function HomePage() {
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
       {/* Hero header */}
       <div className="mb-8 lg:mb-10">
-        <h1 className="section-heading mb-2">
-          Project Showcase
-        </h1>
-        <p className="text-zinc-500 dark:text-zinc-400 max-w-xl">
+        <h1 className="section-heading mb-2">Project Showcase</h1>
+        <p className="text-[var(--text-muted)] max-w-xl">
           Browse {meta?.total ? meta.total.toLocaleString() : "200+"} projects across{" "}
           {meta?.languages?.length || "many"} languages and{" "}
           {meta?.frameworks?.length || "dozens of"} frameworks.
@@ -49,21 +48,23 @@ export default function HomePage() {
       </div>
 
       <div className="flex gap-6 lg:gap-8">
-        {/* Sidebar filters */}
-        <FilterPanel
-          meta={meta}
-          filters={filters}
-          onToggleLanguage={toggleLanguage}
-          onToggleFramework={toggleFramework}
-          onToggleTag={toggleTag}
-          onUpdateFilter={updateFilters}
-          onReset={resetFilters}
-          activeCount={activeFilterCount}
-        />
+        {/* Sidebar filters — desktop only */}
+        <div className="hidden lg:block">
+          <FilterPanel
+            meta={meta}
+            filters={filters}
+            onToggleLanguage={toggleLanguage}
+            onToggleFramework={toggleFramework}
+            onToggleTag={toggleTag}
+            onUpdateFilter={updateFilters}
+            onReset={resetFilters}
+            activeCount={activeFilterCount}
+          />
+        </div>
 
         {/* Main content */}
         <div className="flex-1 min-w-0 flex flex-col gap-4">
-          {/* Mobile filter panel sits above sort bar */}
+          {/* Mobile filter panel */}
           <div className="lg:hidden">
             <FilterPanel
               meta={meta}
@@ -91,42 +92,24 @@ export default function HomePage() {
           {activeFilterCount > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {(filters.languages || []).map((l) => (
-                <FilterChip
-                  key={`lang-${l}`}
-                  label={l}
-                  onRemove={() => toggleLanguage(l)}
-                />
+                <FilterChip key={`lang-${l}`} label={l} onRemove={() => toggleLanguage(l)} />
               ))}
               {(filters.frameworks || []).map((f) => (
-                <FilterChip
-                  key={`fw-${f}`}
-                  label={f}
-                  onRemove={() => toggleFramework(f)}
-                />
+                <FilterChip key={`fw-${f}`} label={f} onRemove={() => toggleFramework(f)} />
               ))}
               {(filters.tags || []).map((t) => (
-                <FilterChip
-                  key={`tag-${t}`}
-                  label={`#${t}`}
-                  onRemove={() => toggleTag(t)}
-                />
+                <FilterChip key={`tag-${t}`} label={`#${t}`} onRemove={() => toggleTag(t)} />
               ))}
               {filters.status && (
-                <FilterChip
-                  label={filters.status}
-                  onRemove={() => updateFilters({ status: "" })}
-                />
+                <FilterChip label={filters.status} onRemove={() => updateFilters({ status: "" })} />
               )}
               {filters.featured && (
-                <FilterChip
-                  label="Featured"
-                  onRemove={() => updateFilters({ featured: undefined })}
-                />
+                <FilterChip label="Featured" onRemove={() => updateFilters({ featured: undefined })} />
               )}
             </div>
           )}
 
-          {/* Project grid */}
+          {/* Project grid — view prop wired in */}
           <ProjectGrid
             projects={projects}
             loading={loading}
@@ -135,6 +118,7 @@ export default function HomePage() {
             page={filters.page || 1}
             totalPages={totalPages}
             onPageChange={(p) => updateFilters({ page: p })}
+            view={view}
           />
         </div>
       </div>
@@ -142,20 +126,14 @@ export default function HomePage() {
   );
 }
 
-function FilterChip({
-  label,
-  onRemove,
-}: {
-  label: string;
-  onRemove: () => void;
-}) {
+function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
     <button
       onClick={onRemove}
-      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800 rounded-full text-xs font-medium hover:bg-brand-100 dark:hover:bg-brand-900 transition-colors"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--brand-50)] dark:bg-[var(--brand-900)]/30 text-[var(--brand-700)] dark:text-[var(--brand-300)] border border-[var(--brand-200)] dark:border-[var(--brand-800)] rounded-full text-xs font-medium hover:bg-[var(--brand-100)] transition-colors"
     >
       {label}
-      <span aria-hidden className="text-brand-400">×</span>
+      <span aria-hidden className="text-[var(--brand-400)]">×</span>
     </button>
   );
 }

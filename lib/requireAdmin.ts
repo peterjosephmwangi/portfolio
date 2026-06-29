@@ -1,3 +1,4 @@
+// lib/requireAdmin.ts
 import { NextRequest } from "next/server";
 import { verifySessionToken, ADMIN_COOKIE_NAME } from "@/lib/adminSession";
 
